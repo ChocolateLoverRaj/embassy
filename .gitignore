@@ -11,3 +11,5 @@ out/
 *.vim
 **/.idea
 **/.nvim.lua
+# direnv
+.direnv
