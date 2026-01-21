@@ -36,22 +36,27 @@ async fn main(_spawner: Spawner) -> ! {
             })
             .into_slave_multimaster(SlaveAddrConfig::basic(i2c_address));
             loop {
-                info!("Ready to receive I2C commands");
+                info!("[I2C1 (peripheral)] ready to receive I2C commands.");
                 let command = match i2c_peripheral.listen().await {
                     Ok(command) => command,
                     Err(e) => {
-                        warn!("I2C error: {}", e);
+                        warn!("[I2C1 (peripheral)] I2C error: {}", e);
                         continue;
                     }
                 };
-                info!("Received I2C command: {}", command);
                 match command.kind {
-                    SlaveCommandKind::Read => {}
+                    SlaveCommandKind::Read => {
+                        info!("[I2C1 (peripheral)] read command started.");
+                        i2c_peripheral
+                            .respond_to_read(&[10, 11, 12, 13, 14, 15, 16, 17])
+                            .await
+                            .unwrap();
+                    }
                     SlaveCommandKind::Write => {
-                        info!("I2C write command started");
-                        let mut buffer = [Default::default(); 512];
+                        info!("[I2C1 (peripheral)] write command started.");
+                        let mut buffer = [Default::default(); 8];
                         let bytes_read = i2c_peripheral.respond_to_write(&mut buffer).await.unwrap();
-                        info!("Received {} bytes: {}", bytes_read, &buffer[..bytes_read]);
+                        info!("[I2C1 (peripheral)] received data: {}.", &buffer[..bytes_read]);
                     }
                 }
             }
@@ -62,9 +67,22 @@ async fn main(_spawner: Spawner) -> ! {
                 config.frequency = khz(100);
                 config
             });
-            info!("writing data");
-            i2c_controller.write(i2c_address, &[10, 20]).await.unwrap();
-            info!("done writing data");
+            info!("[I2C2 (controller)] writing data and then reading data.");
+            let mut response = [Default::default(); 2];
+            let combined_write_read = true;
+            if combined_write_read {
+                i2c_controller
+                    .write_read(i2c_address, &[10, 20], &mut response)
+                    .await
+                    .unwrap();
+            } else {
+                i2c_controller.write(i2c_address, &[10, 20]).await.unwrap();
+                i2c_controller.read(i2c_address, &mut response).await.unwrap();
+            }
+            info!(
+                "[I2C2 (controller)] done writing and reading data. received data: {}.",
+                response
+            );
         },
     )
     .await;
