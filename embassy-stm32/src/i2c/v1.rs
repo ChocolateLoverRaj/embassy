@@ -763,6 +763,7 @@ impl Duty {
 }
 
 /// Result of attempting to send a byte in slave transmitter mode
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
 pub enum TransmitResult {
     /// Byte sent and ACKed by master - continue transmission
@@ -776,6 +777,7 @@ pub enum TransmitResult {
 }
 
 /// Result of attempting to receive a byte in slave receiver mode
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
 pub enum ReceiveResult {
     /// Data byte successfully received
@@ -1318,6 +1320,14 @@ impl<'d, M: PeriMode> I2c<'d, M, MultiMaster> {
         }
     }
 
+    pub fn receive_byte_sync(&mut self) -> Result<ReceiveResult, Error> {
+        loop {
+            if let Some(receive_result) = self.check_receive_byte()? {
+                break Ok(receive_result);
+            }
+        }
+    }
+
     /// Determine which slave address was matched based on SR2 flags
     fn decode_matched_address(sr2: i2c::regs::Sr2, info: &'static Info) -> Result<Address, Error> {
         if sr2.gencall() {
@@ -1540,6 +1550,7 @@ impl<'d> I2c<'d, Async, MultiMaster> {
                 }
                 Ok(Some(receive_result)) => Poll::Ready(Ok(receive_result)),
                 Ok(None) => {
+                    info!("no byte available. enabling interrupts for when the byte is available.");
                     Self::enable_interrupts(info);
                     Poll::Pending
                 }
